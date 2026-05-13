@@ -69,6 +69,33 @@ class GaleriaMediaPagerDialog(
         }
     }
 
+    private val dragListener = object : ZoomableFrameLayout.VerticalDragListener {
+        override fun onDragStart() {
+            pager.animate().cancel()
+            background.animate().cancel()
+        }
+
+        override fun onDrag(dyTotal: Float) {
+            pager.translationY = dyTotal
+            background.alpha = 1f - (kotlin.math.abs(dyTotal) / pager.height.coerceAtLeast(1))
+                .coerceIn(0f, 0.85f)
+        }
+
+        override fun onDragEnd(dyTotal: Float) {
+            if (pager.height > 0 && kotlin.math.abs(dyTotal) > pager.height * 0.22f) {
+                playClosingTransitionAndDismiss()
+            } else {
+                pager.animate().translationY(0f).setDuration(180).start()
+                background.animate().alpha(1f).setDuration(180).start()
+            }
+        }
+
+        override fun onDragCancel() {
+            pager.animate().translationY(0f).setDuration(180).start()
+            background.animate().alpha(1f).setDuration(180).start()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -118,7 +145,7 @@ class GaleriaMediaPagerDialog(
         }
         rootLayout.addView(background)
 
-        adapter = GaleriaPagerAdapter(photos, onVideoError)
+        adapter = GaleriaPagerAdapter(photos, onVideoError, dragListener)
         pager = ViewPager2(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,

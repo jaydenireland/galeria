@@ -20,6 +20,7 @@ private const val TYPE_VIDEO = 2
 internal class GaleriaPagerAdapter(
     private val photos: List<GaleriaPhoto>,
     private val onVideoError: (index: Int, message: String) -> Unit,
+    private val verticalDragListener: ZoomableFrameLayout.VerticalDragListener,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val activeVideoHolders = mutableSetOf<VideoPageViewHolder>()
@@ -40,9 +41,13 @@ internal class GaleriaPagerAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val photo = photos[position]
         when (holder) {
-            is ImagePageViewHolder -> holder.bind(photo)
+            is ImagePageViewHolder -> {
+                holder.bind(photo)
+                holder.zoomContainer.verticalDragListener = verticalDragListener
+            }
             is VideoPageViewHolder -> {
                 holder.bind(photo, position, onVideoError)
+                holder.zoomContainer.verticalDragListener = verticalDragListener
                 activeVideoHolders.add(holder)
             }
         }

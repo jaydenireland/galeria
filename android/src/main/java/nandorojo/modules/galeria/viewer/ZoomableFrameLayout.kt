@@ -21,9 +21,21 @@ class ZoomableFrameLayout @JvmOverloads constructor(
     private val maxScale: Float = 4f,
 ) : FrameLayout(context) {
 
+    interface VerticalDragListener {
+        fun onDragStart()
+        fun onDrag(dyTotal: Float)
+        fun onDragEnd(dyTotal: Float)
+        fun onDragCancel()
+    }
+
+    var verticalDragListener: VerticalDragListener? = null
+
     private var currentScale = 1f
     private var translationXValue = 0f
     private var translationYValue = 0f
+    private var dragStartY = 0f
+    private var draggingVertically = false
+    private val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -104,11 +116,46 @@ class ZoomableFrameLayout @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
         gestureDetector.onTouchEvent(event)
+
+        if (!isZoomed && event.pointerCount == 1) {
+            handleVerticalDrag(event)
+        }
+
         if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
             if (!isZoomed) {
                 parent?.requestDisallowInterceptTouchEvent(false)
             }
         }
         return true
+    }
+
+    private fun handleVerticalDrag(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                dragStartY = event.rawY
+                draggingVertically = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = event.rawY - dragStartY
+                if (!draggingVertically && kotlin.math.abs(dy) > touchSlop) {
+                    draggingVertically = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    verticalDragListener?.onDragStart()
+                }
+                if (draggingVertically) {
+                    verticalDragListener?.onDrag(dy)
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (draggingVertically) {
+                    verticalDragListener?.onDragEnd(event.rawY - dragStartY)
+                }
+                draggingVertically = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                if (draggingVertically) verticalDragListener?.onDragCancel()
+                draggingVertically = false
+            }
+        }
     }
 }
