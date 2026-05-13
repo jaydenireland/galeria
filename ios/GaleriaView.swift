@@ -1,3 +1,4 @@
+import AVFoundation
 import ExpoModulesCore
 import UIKit
 
@@ -47,6 +48,9 @@ class GaleriaView: ExpoView {
 
   var theme: Theme = .dark
   var urls: [String]?
+  var mediaTypes: [String]?
+  var posters: [String]?
+  var mutedFlags: [Bool]?
   var initialIndex: Int?
   var closeIconName: String?
   var rightNavItemIconName: String?
@@ -56,6 +60,9 @@ class GaleriaView: ExpoView {
   let onIndexChange = EventDispatcher()
   let onLongPress = EventDispatcher()
   let onDismiss = EventDispatcher()
+  let onVideoError = EventDispatcher()
+
+  private var didActivateAudioSession = false
 
   public func setupImageView() {
     // Clean up previous state for Fabric view recycling (see #19)
@@ -101,15 +108,60 @@ class GaleriaView: ExpoView {
     viewerTheme: ImageViewerTheme
   ) {
     let options = buildImageViewerOptions()
-
-    let urlObjects: [URL] = urls.compactMap { string in
-      if string.hasPrefix("http://") || string.hasPrefix("https://") || string.hasPrefix("file://") {
-        return URL(string: string)
-      }
-      return URL(fileURLWithPath: string)
+    let items = buildImageItems(urls: urls)
+    let hasVideo = items.contains { if case .video = $0 { return true } else { return false } }
+    if hasVideo {
+      activateAudioSession()
     }
+    childImage.setupImageViewer(items: items, initialIndex: initialIndex, options: options)
+  }
 
-    childImage.setupImageViewer(urls: urlObjects, initialIndex: initialIndex, options: options)
+  private func buildImageItems(urls: [String]) -> [ImageItem] {
+    return urls.enumerated().map { index, urlString in
+      let url = makeURL(from: urlString)
+      let isVideo = (mediaTypes?.indices.contains(index) == true) && mediaTypes?[index] == "video"
+      if isVideo, let url = url {
+        let muted = (mutedFlags?.indices.contains(index) == true) ? (mutedFlags?[index] ?? true) : true
+        let posterString = (posters?.indices.contains(index) == true) ? posters?[index] : nil
+        let posterItem: ImageItem?
+        if let posterString = posterString, !posterString.isEmpty, let posterURL = makeURL(from: posterString) {
+          posterItem = .url(posterURL, placeholder: nil)
+        } else {
+          posterItem = nil
+        }
+        return ImageItem.video(url, poster: posterItem, muted: muted)
+      } else if let url = url {
+        return ImageItem.url(url, placeholder: nil)
+      } else {
+        return ImageItem.image(nil)
+      }
+    }
+  }
+
+  private func makeURL(from string: String) -> URL? {
+    if string.isEmpty { return nil }
+    if string.hasPrefix("http://") || string.hasPrefix("https://") || string.hasPrefix("file://") {
+      return URL(string: string)
+    }
+    return URL(fileURLWithPath: string)
+  }
+
+  private func activateAudioSession() {
+    guard !didActivateAudioSession else { return }
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setCategory(.playback, mode: .moviePlayback, options: [.duckOthers])
+      try session.setActive(true)
+      didActivateAudioSession = true
+    } catch {
+      // Non-fatal: video will still play silently if the session can't activate.
+    }
+  }
+
+  private func deactivateAudioSession() {
+    guard didActivateAudioSession else { return }
+    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    didActivateAudioSession = false
   }
 
   private func setupImageViewerWithSingleImage(
@@ -157,8 +209,14 @@ class GaleriaView: ExpoView {
       options.append(
         .onDismiss { [weak self] in
             self?.restoreKeyboard()
+            self?.deactivateAudioSession()
             self?.onDismiss()
         })
+
+    options.append(
+      .onVideoError { [weak self] index, message in
+        self?.onVideoError(["index": index, "message": message])
+      })
 
     options.append(.hideBlurOverlay(hideBlurOverlay))
     options.append(.hidePageIndicators(hidePageIndicators))

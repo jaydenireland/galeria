@@ -8,6 +8,7 @@ public class GaleriaModule: Module {
       Events("onIndexChange", "onLongPress")
       Events("onIndexChange", "onPressRightNavItemIcon")
       Events("onIndexChange", "onDismiss")
+      Events("onVideoError")
 
       OnViewDidUpdateProps { (view) in
         view.setupImageView()
@@ -15,6 +16,18 @@ public class GaleriaModule: Module {
 
       Prop("urls") { (view, urls: [String]?) in
         view.urls = urls
+      }
+
+      Prop("mediaTypes") { (view, mediaTypes: [String]?) in
+        view.mediaTypes = mediaTypes
+      }
+
+      Prop("posters") { (view, posters: [String]?) in
+        view.posters = posters
+      }
+
+      Prop("mutedFlags") { (view, mutedFlags: [Bool]?) in
+        view.mutedFlags = mutedFlags
       }
 
       Prop("index") { (view, index: Int?) in
