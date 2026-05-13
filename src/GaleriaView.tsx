@@ -12,11 +12,50 @@ import {
 import { createPortal } from 'react-dom'
 import { useWindowDimensions } from 'react-native' // TODO: remove this
 
-import { GaleriaViewProps } from './Galeria.types'
+import {
+  GaleriaSource,
+  GaleriaViewProps,
+  isGaleriaVideoSource,
+} from './Galeria.types'
 import type Native from './GaleriaView.ios'
 
 import { LayoutGroup, motion, useDomEvent } from 'framer-motion'
 import { GaleriaContext } from './context'
+
+type MediaNode = HTMLImageElement | HTMLVideoElement
+
+const isMediaNode = (node: Node): node is MediaNode =>
+  typeof HTMLImageElement !== 'undefined' &&
+  (node instanceof HTMLImageElement ||
+    (typeof HTMLVideoElement !== 'undefined' &&
+      node instanceof HTMLVideoElement))
+
+const resolveSourceUri = (
+  source: GaleriaSource | undefined,
+): string | undefined => {
+  if (source == null) return undefined
+  if (typeof source === 'string') return source
+  if (isGaleriaVideoSource(source)) return source.uri
+  if (typeof source === 'object' && 'uri' in source) {
+    const uri = (source as { uri?: unknown }).uri
+    return typeof uri === 'string' ? uri : undefined
+  }
+  return undefined
+}
+
+const resolvePosterUri = (
+  source: GaleriaSource | undefined,
+): string | undefined => {
+  if (!source || !isGaleriaVideoSource(source) || !source.poster)
+    return undefined
+  const { poster } = source
+  if (typeof poster === 'string') return poster
+  if (typeof poster === 'object' && 'uri' in poster) {
+    const uri = (poster as { uri?: unknown }).uri
+    return typeof uri === 'string' ? uri : undefined
+  }
+  return undefined
+}
 
 function Image({
   __web,
@@ -30,43 +69,44 @@ function Image({
   const url = urls?.[index]
   const [aspectRatio, setAspectRatio] = useState(1)
   const id = useId()
-  const getFirstImageChild = (node: Node): HTMLImageElement | null => {
-    if (node instanceof HTMLImageElement) {
+  const getFirstMediaChild = (node: Node): MediaNode | null => {
+    if (isMediaNode(node)) {
       return node
     }
     if (node.childNodes && node.childNodes.length > 0) {
       for (const child of Array.from(node.childNodes)) {
-        const result = getFirstImageChild(child)
+        const result = getFirstMediaChild(child)
         if (result) return result
       }
     }
     return null
   }
   const getNodeAspectRatio = (node: Node) => {
-    const imageNode = getFirstImageChild(node)
-    if (imageNode) {
-      return (
-        imageNode.getBoundingClientRect().width /
-        imageNode.getBoundingClientRect().height
-      )
+    const mediaNode = getFirstMediaChild(node)
+    if (mediaNode) {
+      const rect = mediaNode.getBoundingClientRect()
+      if (rect.height > 0) return rect.width / rect.height
+      if (mediaNode instanceof HTMLVideoElement && mediaNode.videoHeight > 0) {
+        return mediaNode.videoWidth / mediaNode.videoHeight
+      }
     }
     return 1
   }
   const onClick = (
     e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>,
   ) => {
-    const imageNode = getFirstImageChild(e.target as Node)
-    if (imageNode) {
+    const mediaNode = getFirstMediaChild(e.target as Node)
+    if (mediaNode) {
       setIsOpen(true)
-      const ratio = getNodeAspectRatio(imageNode)
+      const ratio = getNodeAspectRatio(mediaNode)
       setAspectRatio(ratio)
       if (
         typeof process != 'undefined' &&
         typeof process.env != 'undefined' &&
         process?.env?.NODE_ENV === 'development' &&
-        imageNode.parentElement
+        mediaNode.parentElement
       ) {
-        const nodeAspectRatio = getNodeAspectRatio(imageNode.parentElement)
+        const nodeAspectRatio = getNodeAspectRatio(mediaNode.parentElement)
 
         if (nodeAspectRatio !== ratio) {
           console.error(
@@ -143,16 +183,34 @@ Or, you might need something like alignItems: 'flex-start' to the parent element
                 exit={{ backgroundColor: background + '00' }}
               >
                 {url ? (
-                  <motion.img
-                    layoutId={id}
-                    style={{
-                      width,
-                      height,
-                      objectFit: 'cover',
-                      zIndex: 2000,
-                    }}
-                    src={url as string}
-                  ></motion.img>
+                  isGaleriaVideoSource(url) ? (
+                    <motion.video
+                      layoutId={id}
+                      style={{
+                        width,
+                        height,
+                        objectFit: 'contain',
+                        zIndex: 2000,
+                      }}
+                      src={url.uri}
+                      poster={resolvePosterUri(url)}
+                      autoPlay
+                      muted={url.muted ?? true}
+                      controls
+                      playsInline
+                    />
+                  ) : (
+                    <motion.img
+                      layoutId={id}
+                      style={{
+                        width,
+                        height,
+                        objectFit: 'cover',
+                        zIndex: 2000,
+                      }}
+                      src={resolveSourceUri(url) ?? ''}
+                    ></motion.img>
+                  )
                 ) : null}
               </motion.div>
             )
@@ -311,7 +369,9 @@ function PopupModal({
 
 const Galeria: typeof Native = Object.assign(Root, {
   Image,
+  Video: Image,
   Popup: () => null,
+  isVideoSource: isGaleriaVideoSource,
 })
 
 export default Galeria

@@ -1,13 +1,19 @@
 import { requireNativeView } from 'expo'
 
 import { useContext } from 'react'
-import { Image } from 'react-native'
 import {
   controlEdgeToEdgeValues,
   isEdgeToEdge,
 } from 'react-native-is-edge-to-edge'
 import { GaleriaContext } from './context'
-import { GaleriaIndexChangedEvent, GaleriaViewProps } from './Galeria.types'
+import {
+  GaleriaIndexChangedEvent,
+  GaleriaSource,
+  GaleriaVideoErrorEvent,
+  GaleriaViewProps,
+  isGaleriaVideoSource,
+} from './Galeria.types'
+import { resolveGaleriaSources } from './resolveSources'
 
 const EDGE_TO_EDGE = isEdgeToEdge()
 
@@ -15,8 +21,12 @@ const NativeImage = requireNativeView<
   GaleriaViewProps & {
     edgeToEdge: boolean
     urls?: string[]
+    mediaTypes?: ('image' | 'video')[]
+    posters?: string[]
+    mutedFlags?: boolean[]
     theme: 'dark' | 'light'
     onIndexChange?: (event: GaleriaIndexChangedEvent) => void
+    onVideoError?: (event: GaleriaVideoErrorEvent) => void
   }
 >('Galeria')
 
@@ -55,22 +65,50 @@ const Galeria = Object.assign(
       const { theme, urls } = useContext(GaleriaContext)
 
       if (__DEV__) {
-        // warn the user once about unnecessary defined prop
         controlEdgeToEdgeValues({ edgeToEdge })
       }
+
+      const bridge = resolveGaleriaSources(urls)
 
       return (
         <NativeImage
           onIndexChange={props.onIndexChange}
+          onVideoError={props.onVideoError}
           edgeToEdge={EDGE_TO_EDGE || (edgeToEdge ?? false)}
           theme={theme}
-          urls={urls?.map((url) => {
-            if (typeof url === 'string') {
-              return url
-            }
+          urls={bridge.urls}
+          mediaTypes={bridge.mediaTypes}
+          posters={bridge.posters}
+          mutedFlags={bridge.mutedFlags}
+          {...props}
+        />
+      )
+    },
+    Video({ edgeToEdge, ...props }: GaleriaViewProps) {
+      const { theme, urls } = useContext(GaleriaContext)
 
-            return Image.resolveAssetSource(url).uri
-          })}
+      if (__DEV__) {
+        controlEdgeToEdgeValues({ edgeToEdge })
+      }
+
+      const bridge = resolveGaleriaSources(urls)
+      const mutedFlags =
+        props.videoMuted != null && props.index != null
+          ? bridge.mutedFlags.map((m, i) =>
+              i === props.index ? props.videoMuted! : m,
+            )
+          : bridge.mutedFlags
+
+      return (
+        <NativeImage
+          onIndexChange={props.onIndexChange}
+          onVideoError={props.onVideoError}
+          edgeToEdge={EDGE_TO_EDGE || (edgeToEdge ?? false)}
+          theme={theme}
+          urls={bridge.urls}
+          mediaTypes={bridge.mediaTypes}
+          posters={bridge.posters}
+          mutedFlags={mutedFlags}
           {...props}
         />
       )
@@ -78,7 +116,10 @@ const Galeria = Object.assign(
     Popup: (() => null) as React.FC<{
       disableTransition?: 'web'
     }>,
+    isVideoSource: isGaleriaVideoSource,
   },
 )
+
+export type GaleriaAndroidSource = GaleriaSource
 
 export default Galeria

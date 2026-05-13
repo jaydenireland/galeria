@@ -1,13 +1,12 @@
 import { ContextType, createContext } from 'react'
-import type { Image } from 'react-native'
 import type { SFSymbol } from 'sf-symbols-typescript'
 
-type ImageSource = string | Parameters<typeof Image.resolveAssetSource>[0]
+import type { GaleriaSource } from './Galeria.types'
 
 export const GaleriaContext = createContext({
   initialIndex: 0,
   open: false,
-  urls: [] as unknown as undefined | ImageSource[],
+  urls: [] as unknown as undefined | GaleriaSource[],
   closeIconName: undefined as undefined | SFSymbol,
   /**
    * @deprecated

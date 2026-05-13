@@ -1,12 +1,47 @@
 import type { motion } from 'framer-motion'
 import type { ComponentProps } from 'react'
-import type { NativeSyntheticEvent } from 'react-native'
+import type { Image, NativeSyntheticEvent } from 'react-native'
 import { ViewStyle } from 'react-native'
 import type { SFSymbol } from 'sf-symbols-typescript'
 
 export type ChangeEventPayload = {
   value: string
 }
+
+export type GaleriaImageAssetSource = Parameters<
+  typeof Image.resolveAssetSource
+>[0]
+
+export type GaleriaImageSource = string | GaleriaImageAssetSource
+
+export type GaleriaVideoSource = {
+  uri: string
+  type: 'video'
+  /**
+   * Image used for the inline trigger and shared-element transition. Strongly
+   * recommended — without it the transition falls back to whatever child view
+   * the trigger renders.
+   */
+  poster?: string | GaleriaImageAssetSource
+  /** Defaults to true. */
+  muted?: boolean
+}
+
+export type GaleriaSource = GaleriaImageSource | GaleriaVideoSource
+
+export const isGaleriaVideoSource = (
+  source: GaleriaSource,
+): source is GaleriaVideoSource =>
+  typeof source === 'object' &&
+  source !== null &&
+  (source as { type?: unknown }).type === 'video'
+
+export type GaleriaVideoErrorPayload = {
+  index: number
+  message: string
+}
+
+export type GaleriaVideoErrorEvent = NativeSyntheticEvent<GaleriaVideoErrorPayload>
 
 type GaleriaIndexChangedPayload = {
   currentIndex: number
@@ -37,4 +72,7 @@ export interface GaleriaViewProps {
   onDismiss?: (event: GaleriaDismissEvent) => void
   hideBlurOverlay?: boolean
   hidePageIndicators?: boolean
+  /** Per-trigger override for the muted state of a video entry. */
+  videoMuted?: boolean
+  onVideoError?: (event: GaleriaVideoErrorEvent) => void
 }
