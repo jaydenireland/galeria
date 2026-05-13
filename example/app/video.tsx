@@ -46,7 +46,17 @@ export default function VideoScreen() {
             const TriggerComponent = isVideo ? Galeria.Video : Galeria.Image
             return (
               <View key={index} style={styles.tileWrapper}>
-                <TriggerComponent index={index} style={styles.tile}>
+                <TriggerComponent
+                  index={index}
+                  style={styles.tile}
+                  onVideoError={(e) => {
+                    console.log(
+                      '[Galeria.Video]',
+                      e.nativeEvent.index,
+                      e.nativeEvent.message,
+                    )
+                  }}
+                >
                   <Image
                     source={{ uri: sourceUri(item) }}
                     style={{ width: itemWidth, height: itemWidth }}
