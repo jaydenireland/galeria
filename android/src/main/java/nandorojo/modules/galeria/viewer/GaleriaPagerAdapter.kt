@@ -1,3 +1,5 @@
+@file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+
 package nandorojo.modules.galeria.viewer
 
 import android.annotation.SuppressLint
@@ -10,6 +12,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -112,7 +115,6 @@ internal class ImagePageViewHolder private constructor(
     }
 }
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal class VideoPageViewHolder private constructor(
     val zoomContainer: ZoomableFrameLayout,
     private val playerView: PlayerView,
@@ -171,7 +173,6 @@ internal class VideoPageViewHolder private constructor(
 
     companion object {
         @SuppressLint("ResourceType")
-        @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
         fun create(context: Context): VideoPageViewHolder {
             val container = ZoomableFrameLayout(context).apply {
                 layoutParams = ViewGroup.LayoutParams(
@@ -187,7 +188,7 @@ internal class VideoPageViewHolder private constructor(
                 )
                 useController = true
                 controllerAutoShow = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
             val poster = ImageView(context).apply {
                 layoutParams = FrameLayout.LayoutParams(

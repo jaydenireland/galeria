@@ -357,6 +357,6 @@ extension VideoViewerController: UIScrollViewDelegate {
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         updateConstraintsForSize(view.bounds.size)
-        playerLayer.frame = containerView.bounds
+        playerViewController.view.frame = containerView.bounds
     }
 }

@@ -64,7 +64,9 @@ class GaleriaMediaPagerDialog(
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> adapter.pauseAll()
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                if (::adapter.isInitialized) adapter.pauseAll()
+            }
             else -> Unit
         }
     }

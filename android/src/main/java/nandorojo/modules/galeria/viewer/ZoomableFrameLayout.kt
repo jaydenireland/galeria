@@ -1,10 +1,10 @@
 package nandorojo.modules.galeria.viewer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.view.ViewGroup
 import android.widget.FrameLayout
 
 /**
@@ -72,13 +72,6 @@ class ZoomableFrameLayout @JvmOverloads constructor(
         }
     })
 
-    init {
-        layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        )
-    }
-
     val isZoomed: Boolean get() = currentScale > minScale + 0.001f
 
     fun resetZoom() {
@@ -105,27 +98,46 @@ class ZoomableFrameLayout @JvmOverloads constructor(
         translationYValue = translationYValue.coerceIn(-extraY, extraY)
     }
 
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        // Always pass touches to children first; we only consume in onTouchEvent.
-        if (isZoomed) {
-            parent?.requestDisallowInterceptTouchEvent(true)
-        }
-        return super.onInterceptTouchEvent(ev)
-    }
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Feed gesture detectors regardless of whether children consume the
+        // events, so pinch + double-tap work even on top of a `PlayerView`
+        // (which otherwise consumes single-finger taps for its controls).
+        scaleDetector.onTouchEvent(ev)
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        scaleDetector.onTouchEvent(event)
-        gestureDetector.onTouchEvent(event)
-
-        if (!isZoomed && event.pointerCount == 1) {
-            handleVerticalDrag(event)
-        }
-
-        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+        if (ev.pointerCount > 1 || scaleDetector.isInProgress) {
+            // Multi-touch or active pinch: cancel any in-flight drag.
+            if (draggingVertically) {
+                verticalDragListener?.onDragCancel()
+                draggingVertically = false
+            }
+        } else {
+            gestureDetector.onTouchEvent(ev)
             if (!isZoomed) {
-                parent?.requestDisallowInterceptTouchEvent(false)
+                handleVerticalDrag(ev)
+                if (draggingVertically) {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
             }
         }
+
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            parent?.requestDisallowInterceptTouchEvent(isZoomed)
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // Take over multi-touch pinches and any events once zoomed so we own
+        // pan. Single-finger taps continue to reach children.
+        return ev.pointerCount >= 2 || isZoomed
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        // `dispatchTouchEvent` is already feeding the detectors; this path
+        // only needs to keep `true` so we keep receiving the gesture stream
+        // when we own the touch.
         return true
     }
 
