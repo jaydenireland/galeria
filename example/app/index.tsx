@@ -12,6 +12,7 @@ export default function HomeScreen() {
       <LinkItem href="/chat">Chat</LinkItem>
       <LinkItem href="/modal">Modal</LinkItem>
       <LinkItem href="/masonry">Masonry</LinkItem>
+      <LinkItem href="/video">Video</LinkItem>
 
       <Galeria urls={urls} theme="light" closeIconName='xmark'>
         <Galeria.Image id={urls[0]} index={0}>

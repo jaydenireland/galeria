@@ -63,6 +63,7 @@ function RootLayoutNav() {
         <Stack.Screen name="masonry" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         <Stack.Screen name="list" options={{ headerShown: false }} />
+        <Stack.Screen name="video" options={{ title: 'Video' }} />
       </Stack>
     </ThemeProvider>
   )

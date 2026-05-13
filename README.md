@@ -88,6 +88,56 @@ export const MutliImage = ({ style }) => (
 )
 ```
 
+### Video Support
+
+Galeria accepts a typed `urls` array so each entry can be an image *or* a video. Tap a video trigger to open the pager; video pages autoplay (muted by default), keep pinch-to-zoom, and pause/release as you swipe between pages.
+
+```tsx
+import { Galeria, isGaleriaVideoSource, type GaleriaSource } from '@nandorojo/galeria'
+import { Image } from 'expo-image'
+
+const items: GaleriaSource[] = [
+  'https://my-image.com/photo.jpg',
+  {
+    uri: 'https://my-cdn.com/clip.mp4',
+    type: 'video',
+    poster: 'https://my-cdn.com/clip-poster.jpg',
+    // muted: true, // default
+  },
+]
+
+export const Mixed = () => (
+  <Galeria urls={items}>
+    {items.map((item, index) => {
+      const Trigger = isGaleriaVideoSource(item) ? Galeria.Video : Galeria.Image
+      const posterUri = isGaleriaVideoSource(item)
+        ? (typeof item.poster === 'string' ? item.poster : item.uri)
+        : (item as string)
+      return (
+        <Trigger index={index} key={index}>
+          <Image source={{ uri: posterUri }} style={{ width: 120, height: 120 }} />
+        </Trigger>
+      )
+    })}
+  </Galeria>
+)
+```
+
+`<Galeria.Video>` is interchangeable with `<Galeria.Image>` for the trigger — pick whichever reads better at the call site. The native side identifies videos by index, so you can also use `<Galeria.Image>` everywhere and only typing the entries.
+
+Notes:
+
+- **iOS**: `AVPlayer` + system audio session (`.playback` / `.duckOthers`). Backgrounding pauses; interruptions (phone calls, Siri) pause too.
+- **Android**: Media3/ExoPlayer with audio focus. Bumps `compileSdk` to **34**. HLS streaming requires opting in to `androidx.media3:media3-exoplayer-hls` in your app's gradle file (not bundled by default).
+- **Web**: native `<video controls autoplay muted playsinline>`. Aspect ratio uses the poster when present, falling back to `videoWidth/videoHeight`.
+- Pinch-to-zoom and double-tap zoom work on video the same as on images.
+- A `poster` is strongly recommended — without it the shared-element transition falls back to whatever child view the trigger renders, and the page shows a black background until playback starts.
+- Surface playback errors via `onVideoError`:
+
+  ```tsx
+  <Galeria.Video onVideoError={(e) => console.warn(e.nativeEvent.message)} />
+  ```
+
 ### Dark Mode
 
 ```tsx

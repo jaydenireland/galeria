@@ -28,19 +28,22 @@ import com.github.iielse.imageviewer.core.Transformer
 import com.github.iielse.imageviewer.core.ViewerCallback
 import com.github.iielse.imageviewer.utils.Config
 import expo.modules.kotlin.viewevent.EventDispatcher
+import nandorojo.modules.galeria.viewer.GaleriaMediaPagerDialog
+import nandorojo.modules.galeria.viewer.GaleriaPhoto as MediaPhoto
 
 
+/**
+ * iielse `Photo` adapter used for the image-only path. Carries only the URL.
+ */
 class StringPhoto(private val id: Long, private val data: String) : Photo {
     override fun id(): Long = id
-
     override fun itemType(): Int = 1
-
     override fun extra(): Any = data
 }
 
-fun convertToPhotos(ids: Array<String>): List<Photo> {
-    return ids.mapIndexed { index, data ->
-        StringPhoto(index.toLong(), data)  // Use index as the id, and data as the image data.
+fun convertToPhotos(urls: Array<String>): List<Photo> {
+    return urls.mapIndexed { index, data ->
+        StringPhoto(index.toLong(), data)
     }
 }
 
@@ -49,9 +52,13 @@ fun convertToPhotos(ids: Array<String>): List<Photo> {
 class GaleriaView(context: Context) : ViewGroup(context) {
     private lateinit var viewer: ImageViewerBuilder
     lateinit var urls: Array<String>
+    var mediaTypes: Array<String>? = null
+    var posters: Array<String>? = null
+    var mutedFlags: Array<Boolean>? = null
     val onIndexChange by EventDispatcher()
     val onLongPress by EventDispatcher()
     val onDismiss by EventDispatcher()
+    val onVideoError by EventDispatcher()
     var theme: Theme = Theme.Dark
     var initialIndex: Int = 0
     var disableHiddenOriginalImage = false
@@ -62,9 +69,13 @@ class GaleriaView(context: Context) : ViewGroup(context) {
         ViewModelProvider(getViewModelOwner(context)).get(ImageViewerActionViewModel::class.java)
     }
 
-    fun dismiss()  {
+    private var activeMediaDialog: GaleriaMediaPagerDialog? = null
+
+    fun dismiss() {
         viewModel.dismiss()
+        activeMediaDialog?.dismiss()
     }
+
     private fun getViewModelOwner(context: Context): ViewModelStoreOwner {
         val activity = getActivity(context)
             ?: throw IllegalStateException("The provided context ${context.javaClass.name} is not associated with an activity.")
@@ -90,6 +101,25 @@ class GaleriaView(context: Context) : ViewGroup(context) {
             statusBarHeight = resources.getDimensionPixelSize(resourceId)
         }
         return statusBarHeight
+    }
+
+    private fun hasAnyVideo(): Boolean =
+        mediaTypes?.any { it == "video" } == true
+
+    private fun buildMediaPhotos(): List<MediaPhoto> {
+        val types = mediaTypes
+        val postersArr = posters
+        val mutedArr = mutedFlags
+        return urls.mapIndexed { i, uri ->
+            val isVideo = types?.getOrNull(i) == "video"
+            MediaPhoto(
+                id = i.toLong(),
+                uri = uri,
+                poster = postersArr?.getOrNull(i)?.takeIf { it.isNotEmpty() },
+                muted = mutedArr?.getOrNull(i) ?: true,
+                isVideo = isVideo,
+            )
+        }
     }
 
 
@@ -123,15 +153,17 @@ class GaleriaView(context: Context) : ViewGroup(context) {
                     )
                 })
                 childView.setOnClickListener {
-                    setupConfig()
-                    if (!disableHiddenOriginalImage) {
-                        viewer.setViewerCallback(CustomViewerCallback(childView as ImageView) { index ->
-                            onIndexChange(mapOf("currentIndex" to index))
-                        })
+                    if (hasAnyVideo()) {
+                        openMediaPager(childView, initialIndex)
+                    } else {
+                        setupConfig()
+                        if (!disableHiddenOriginalImage) {
+                            viewer.setViewerCallback(CustomViewerCallback(childView as ImageView) { index ->
+                                onIndexChange(mapOf("currentIndex" to index))
+                            })
+                        }
+                        viewer.show()
                     }
-
-                    viewer.show()
-
                 }
                 childView.setOnLongClickListener {
                     onLongPress(emptyMap<String, Any>())
@@ -141,6 +173,31 @@ class GaleriaView(context: Context) : ViewGroup(context) {
                 setupImageViewer(childView)
             }
         }
+    }
+
+    private fun openMediaPager(sourceView: ImageView, index: Int) {
+        val activity = getActivity(context)
+        val dialog = GaleriaMediaPagerDialog(
+            activity = activity,
+            sourceView = sourceView,
+            photos = buildMediaPhotos(),
+            initialIndex = index,
+            theme = theme,
+            isAppearanceLightSystemBars =
+                if (edgeToEdge) theme.toAppearanceLightSystemBars() else null,
+            onDismissCallback = {
+                activeMediaDialog = null
+                onDismiss(emptyMap<String, Any>())
+            },
+            onIndexChange = { newIndex ->
+                onIndexChange(mapOf("currentIndex" to newIndex))
+            },
+            onVideoError = { errorIndex, message ->
+                onVideoError(mapOf("index" to errorIndex, "message" to message))
+            },
+        )
+        activeMediaDialog = dialog
+        dialog.show()
     }
 
 
@@ -219,14 +276,9 @@ enum class Theme(val value: String) {
 
 class SimpleImageLoader : ImageLoader {
     override fun load(view: ImageView, data: Photo, viewHolder: RecyclerView.ViewHolder) {
-//        Todo: Since React-Native's Image is using Fresco as the image loader, we may need to handle it differently.
         val it = data.extra() as? String
         Glide.with(view).load(it)
             .placeholder(view.drawable)
             .into(view)
     }
 }
-
-
-
-
