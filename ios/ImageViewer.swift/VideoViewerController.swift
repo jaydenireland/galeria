@@ -1,5 +1,4 @@
 import AVFoundation
-import AVKit
 import UIKit
 
 class VideoViewerController: UIViewController {
@@ -15,10 +14,9 @@ class VideoViewerController: UIViewController {
     private(set) var scrollView: UIScrollView!
     let containerView = UIView()
     let posterImageView = UIImageView()
-    private let playerViewController = AVPlayerViewController()
+    let playerView = PlayerContainerView()
     private(set) var player: AVPlayer?
     private var playerItemStatusObservation: NSKeyValueObservation?
-    private var playerItemErrorObservation: NSKeyValueObservation?
     private var didReachReadyToPlay = false
 
     private var top: NSLayoutConstraint!
@@ -60,10 +58,9 @@ class VideoViewerController: UIViewController {
 
     deinit {
         playerItemStatusObservation?.invalidate()
-        playerItemErrorObservation?.invalidate()
         NotificationCenter.default.removeObserver(self)
         player?.pause()
-        playerViewController.player = nil
+        playerView.player = nil
     }
 
     override func loadView() {
@@ -93,31 +90,23 @@ class VideoViewerController: UIViewController {
         leading.isActive = true
         trailing.isActive = true
         bottom.isActive = true
-    }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        NSLog("[Galeria] VideoViewerController viewDidLoad index=\(index)")
-
-        // Child view-controller containment is set up here rather than in
-        // loadView so the parent's view hierarchy is fully realised first.
-        addChild(playerViewController)
-        playerViewController.view.translatesAutoresizingMaskIntoConstraints = true
-        playerViewController.view.frame = containerView.bounds
-        playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        playerViewController.videoGravity = .resizeAspect
-        playerViewController.showsPlaybackControls = true
-        playerViewController.allowsPictureInPicturePlayback = false
-        playerViewController.view.backgroundColor = .black
-        containerView.addSubview(playerViewController.view)
-        playerViewController.didMove(toParent: self)
+        // PlayerContainerView is layer-backed by AVPlayerLayer; its frame is
+        // driven by the autoresizing mask, so the player always matches the
+        // container's bounds.
+        playerView.frame = containerView.bounds
+        playerView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        containerView.addSubview(playerView)
 
         posterImageView.contentMode = .scaleAspectFit
         posterImageView.frame = containerView.bounds
         posterImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         posterImageView.isUserInteractionEnabled = false
         containerView.addSubview(posterImageView)
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
 
         loadPoster()
         preparePlayer()
@@ -143,24 +132,18 @@ class VideoViewerController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        // Page-change autoplay is wired in ImageViewerRootView. Initial open
-        // also routes through that path on the first didFinishAnimating —
-        // but in case the controller is being shown without that callback
-        // (e.g. setViewControllers initial), kick off playback here too.
+        // Initial-open path: the page VC's `didFinishAnimating` only fires on
+        // user-driven page changes, so kick playback off here for the first
+        // page too.
         play()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        // Keep poster visible for the dismiss transition.
+        // Keep the poster visible during the dismiss transition so the
+        // shared-element animation has something to match against.
         posterImageView.alpha = 1
         pause()
-    }
-
-    override func viewWillLayoutSubviews() {
-        super.viewWillLayoutSubviews()
-        layout()
-        playerViewController.view.frame = containerView.bounds
     }
 
     private func loadPoster() {
@@ -168,45 +151,47 @@ class VideoViewerController: UIViewController {
         switch posterItem {
         case .image(let img):
             posterImageView.image = img ?? initial
+            if let img = img ?? initial {
+                intrinsicSize = img.size
+            }
         case .url(let url, let placeholder):
             let effectivePlaceholder = placeholder ?? initial
             posterImageView.image = effectivePlaceholder
+            if let effectivePlaceholder = effectivePlaceholder {
+                intrinsicSize = effectivePlaceholder.size
+            }
             imageLoader.loadImage(url, placeholder: effectivePlaceholder, imageView: posterImageView) { [weak self] image in
-                guard let self = self else { return }
                 DispatchQueue.main.async {
-                    if let image = image {
-                        self.intrinsicSize = image.size
-                        self.layout()
+                    if let image = image, image.size.width > 0, image.size.height > 0 {
+                        self?.intrinsicSize = image.size
+                        self?.layout()
                     }
                 }
             }
         case .video, .none:
             posterImageView.image = initial
-        }
-        if let initial = initial, intrinsicSize == CGSize(width: 16, height: 9) {
-            intrinsicSize = initial.size
+            if let initial = initial {
+                intrinsicSize = initial.size
+            }
         }
     }
 
     private func preparePlayer() {
-        NSLog("[Galeria] VideoViewerController.preparePlayer url=\(url.absoluteString) muted=\(muted)")
         let item = AVPlayerItem(url: url)
         let p = AVPlayer(playerItem: item)
         p.isMuted = muted
         p.automaticallyWaitsToMinimizeStalling = true
         player = p
-        playerViewController.player = p
+        playerView.player = p
 
         playerItemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard let self = self else { return }
             DispatchQueue.main.async {
                 switch item.status {
                 case .readyToPlay:
-                    NSLog("[Galeria] VideoViewerController player ready (index=\(self.index))")
                     self.handleReadyToPlay()
                 case .failed:
                     let message = item.error?.localizedDescription ?? "Unknown playback error"
-                    NSLog("[Galeria] VideoViewerController player failed (index=\(self.index)): \(message)")
                     self.onVideoError?(self.index, message)
                 default:
                     break
@@ -252,7 +237,7 @@ class VideoViewerController: UIViewController {
         pause()
         playerItemStatusObservation?.invalidate()
         playerItemStatusObservation = nil
-        playerViewController.player = nil
+        playerView.player = nil
         player = nil
     }
 
@@ -300,12 +285,21 @@ extension VideoViewerController {
         layout()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Re-run our constraint math now that the parent has settled. The
+        // initial layout pass races with the scroll-view zoom setup, so it's
+        // important to run this once the real bounds are known.
+        layout()
+    }
+
     func updateMinMaxZoomScaleForSize(_ size: CGSize) {
         guard intrinsicSize.width > 0, intrinsicSize.height > 0 else { return }
+        guard size.width > 0, size.height > 0 else { return }
 
         let safeAreaInsets = view.safeAreaInsets
-        let availableWidth = size.width - safeAreaInsets.left - safeAreaInsets.right
-        let availableHeight = size.height - safeAreaInsets.top - safeAreaInsets.bottom
+        let availableWidth = max(1, size.width - safeAreaInsets.left - safeAreaInsets.right)
+        let availableHeight = max(1, size.height - safeAreaInsets.top - safeAreaInsets.bottom)
 
         let minScale = min(
             availableWidth / intrinsicSize.width,
@@ -338,10 +332,11 @@ extension VideoViewerController {
 
     func updateConstraintsForSize(_ size: CGSize) {
         guard intrinsicSize.width > 0, intrinsicSize.height > 0 else { return }
+        guard size.width > 0, size.height > 0 else { return }
 
         let safeAreaInsets = view.safeAreaInsets
-        let availableWidth = size.width - safeAreaInsets.left - safeAreaInsets.right
-        let availableHeight = size.height - safeAreaInsets.top - safeAreaInsets.bottom
+        let availableWidth = max(0, size.width - safeAreaInsets.left - safeAreaInsets.right)
+        let availableHeight = max(0, size.height - safeAreaInsets.top - safeAreaInsets.bottom)
 
         let scaledWidth = intrinsicSize.width * scrollView.zoomScale
         let scaledHeight = intrinsicSize.height * scrollView.zoomScale
@@ -365,6 +360,5 @@ extension VideoViewerController: UIScrollViewDelegate {
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         updateConstraintsForSize(view.bounds.size)
-        playerViewController.view.frame = containerView.bounds
     }
 }

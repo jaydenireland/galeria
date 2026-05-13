@@ -49,13 +49,13 @@ export default function VideoScreen() {
                 <TriggerComponent
                   index={index}
                   style={styles.tile}
-                  onVideoError={(e) => {
-                    console.log(
-                      '[Galeria.Video]',
+                  onVideoError={(e) =>
+                    console.warn(
+                      '[Galeria.Video error]',
                       e.nativeEvent.index,
                       e.nativeEvent.message,
                     )
-                  }}
+                  }
                 >
                   <Image
                     source={{ uri: sourceUri(item) }}

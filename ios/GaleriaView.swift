@@ -1,5 +1,4 @@
 import AVFoundation
-import AVKit
 import ExpoModulesCore
 import UIKit
 
@@ -78,13 +77,7 @@ class GaleriaView: ExpoView {
 
     registerWithRegistry()
 
-    let myIndex = initialIndex ?? 0
-    if isVideoTrigger(at: myIndex) {
-      // Video triggers open `AVPlayerViewController` modally instead of the
-      // image pager. We deliberately bypass the iielse-style pager for these
-      // triggers — its image-only pipeline can't play video.
-      attachVideoTapHandler(to: childImage, index: myIndex)
-    } else if let urls = self.urls, let initialIndex = self.initialIndex {
+    if let urls = self.urls, let initialIndex = self.initialIndex {
       setupImageViewerWithUrls(
         childImage, urls: urls, initialIndex: initialIndex, viewerTheme: viewerTheme)
     } else {
@@ -92,86 +85,6 @@ class GaleriaView: ExpoView {
     }
 
     attachLongPressRecognizer(to: childImage)
-  }
-
-  private func isVideoTrigger(at index: Int) -> Bool {
-    guard let types = mediaTypes, types.indices.contains(index) else { return false }
-    return types[index] == "video"
-  }
-
-  private func attachVideoTapHandler(to imageView: UIImageView, index: Int) {
-    let tap = UITapGestureRecognizer(
-      target: self, action: #selector(handleVideoTap(_:)))
-    tap.numberOfTapsRequired = 1
-    imageView.addGestureRecognizer(tap)
-    imageView.isUserInteractionEnabled = true
-  }
-
-  @objc private func handleVideoTap(_ recognizer: UITapGestureRecognizer) {
-    let myIndex = initialIndex ?? 0
-    onVideoError(["index": myIndex, "message": "DEBUG: video tap fired"])
-
-    guard let urls = self.urls,
-          urls.indices.contains(myIndex),
-          let url = makeURL(from: urls[myIndex]) else {
-      onVideoError(["index": myIndex, "message": "Invalid video URL"])
-      return
-    }
-
-    activateAudioSession()
-
-    let muted = (mutedFlags?.indices.contains(myIndex) == true) ? (mutedFlags?[myIndex] ?? true) : true
-
-    let playerVC = AVPlayerViewController()
-    let item = AVPlayerItem(url: url)
-    let player = AVPlayer(playerItem: item)
-    player.isMuted = muted
-    playerVC.player = player
-    playerVC.allowsPictureInPicturePlayback = false
-    playerVC.modalPresentationStyle = .fullScreen
-
-    // Surface playback failures to JS — `onVideoError` is a React event so it
-    // shows up in the JS console, which is where the developer is looking.
-    let observer = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-      DispatchQueue.main.async {
-        switch item.status {
-        case .failed:
-          let message = item.error?.localizedDescription ?? "Unknown playback error"
-          self?.onVideoError(["index": myIndex, "message": message])
-        case .readyToPlay:
-          self?.onVideoError(["index": myIndex, "message": "DEBUG: readyToPlay"])
-        default:
-          break
-        }
-      }
-    }
-    objc_setAssociatedObject(
-      playerVC, &GaleriaView.observerKey, observer,
-      .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-
-    guard let topVC = findTopViewController() else {
-      onVideoError(["index": myIndex, "message": "No top view controller to present from"])
-      return
-    }
-
-    topVC.present(playerVC, animated: true) { [weak self] in
-      player.play()
-      self?.onVideoError(["index": myIndex, "message": "DEBUG: presented + play()"])
-    }
-  }
-
-  private static var observerKey: UInt8 = 0
-
-  private func findTopViewController() -> UIViewController? {
-    let keyWindow = UIApplication.shared.connectedScenes
-      .compactMap { $0 as? UIWindowScene }
-      .flatMap { $0.windows }
-      .first { $0.isKeyWindow }
-    var top = keyWindow?.rootViewController
-    while let presented = top?.presentedViewController {
-      top = presented
-    }
-    return top
   }
 
   private func attachLongPressRecognizer(to imageView: UIImageView) {
@@ -196,22 +109,32 @@ class GaleriaView: ExpoView {
   ) {
     let options = buildImageViewerOptions()
     let items = buildImageItems(urls: urls)
+    let hasVideo = items.contains { if case .video = $0 { return true } else { return false } }
+    if hasVideo {
+      activateAudioSession()
+    }
     childImage.setupImageViewer(items: items, initialIndex: initialIndex, options: options)
   }
 
   private func buildImageItems(urls: [String]) -> [ImageItem] {
     return urls.enumerated().map { index, urlString in
+      let url = makeURL(from: urlString)
       let isVideo = (mediaTypes?.indices.contains(index) == true) && mediaTypes?[index] == "video"
-      // For video entries we render the poster (if any) in the image-only
-      // swipe pager — actual playback happens by tapping the video trigger
-      // directly, which opens `AVPlayerViewController` modally.
-      let imageURLString = isVideo
-        ? (posters?.indices.contains(index) == true ? (posters?[index] ?? "") : "")
-        : urlString
-      if let url = makeURL(from: imageURLString) {
+      if isVideo, let url = url {
+        let muted = (mutedFlags?.indices.contains(index) == true) ? (mutedFlags?[index] ?? true) : true
+        let posterString = (posters?.indices.contains(index) == true) ? posters?[index] : nil
+        let posterItem: ImageItem?
+        if let posterString = posterString, !posterString.isEmpty, let posterURL = makeURL(from: posterString) {
+          posterItem = .url(posterURL, placeholder: nil)
+        } else {
+          posterItem = nil
+        }
+        return ImageItem.video(url, poster: posterItem, muted: muted)
+      } else if let url = url {
         return ImageItem.url(url, placeholder: nil)
+      } else {
+        return ImageItem.image(nil)
       }
-      return ImageItem.image(nil)
     }
   }
 
