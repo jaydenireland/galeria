@@ -117,6 +117,16 @@ class VideoViewerController: UIViewController {
             name: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance()
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleWillResignActive() {
+        player?.pause()
     }
 
     override func viewDidAppear(_ animated: Bool) {
