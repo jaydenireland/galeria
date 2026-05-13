@@ -15,7 +15,7 @@ class VideoViewerController: UIViewController {
     private(set) var scrollView: UIScrollView!
     let containerView = UIView()
     let posterImageView = UIImageView()
-    private let playerLayer = AVPlayerLayer()
+    private let playerViewController = AVPlayerViewController()
     private(set) var player: AVPlayer?
     private var playerItemStatusObservation: NSKeyValueObservation?
     private var playerItemErrorObservation: NSKeyValueObservation?
@@ -63,7 +63,7 @@ class VideoViewerController: UIViewController {
         playerItemErrorObservation?.invalidate()
         NotificationCenter.default.removeObserver(self)
         player?.pause()
-        playerLayer.player = nil
+        playerViewController.player = nil
     }
 
     override func loadView() {
@@ -94,14 +94,21 @@ class VideoViewerController: UIViewController {
         trailing.isActive = true
         bottom.isActive = true
 
+        addChild(playerViewController)
+        playerViewController.view.frame = containerView.bounds
+        playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        playerViewController.videoGravity = .resizeAspect
+        playerViewController.showsPlaybackControls = true
+        playerViewController.allowsPictureInPicturePlayback = false
+        playerViewController.view.backgroundColor = .clear
+        containerView.addSubview(playerViewController.view)
+        playerViewController.didMove(toParent: self)
+
         posterImageView.contentMode = .scaleAspectFit
         posterImageView.frame = containerView.bounds
         posterImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        posterImageView.isUserInteractionEnabled = false
         containerView.addSubview(posterImageView)
-
-        playerLayer.frame = containerView.bounds
-        playerLayer.videoGravity = .resizeAspect
-        containerView.layer.addSublayer(playerLayer)
     }
 
     override func viewDidLoad() {
@@ -148,7 +155,7 @@ class VideoViewerController: UIViewController {
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         layout()
-        playerLayer.frame = containerView.bounds
+        playerViewController.view.frame = containerView.bounds
     }
 
     private func loadPoster() {
@@ -182,7 +189,7 @@ class VideoViewerController: UIViewController {
         p.isMuted = muted
         p.automaticallyWaitsToMinimizeStalling = true
         player = p
-        playerLayer.player = p
+        playerViewController.player = p
 
         playerItemStatusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard let self = self else { return }
@@ -211,7 +218,7 @@ class VideoViewerController: UIViewController {
                 layout()
             }
         }
-        UIView.animate(withDuration: 0.12) { [weak self] in
+        UIView.animate(withDuration: 0.12, delay: 0.05, options: [.curveEaseOut]) { [weak self] in
             self?.posterImageView.alpha = 0
         }
     }
@@ -237,7 +244,7 @@ class VideoViewerController: UIViewController {
         pause()
         playerItemStatusObservation?.invalidate()
         playerItemStatusObservation = nil
-        playerLayer.player = nil
+        playerViewController.player = nil
         player = nil
     }
 
