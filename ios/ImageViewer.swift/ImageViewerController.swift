@@ -64,7 +64,7 @@ class ImageViewerController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        switch imageItem {
+        switch imageItem! {
         case .image(let img):
             imageView.image = img ?? initialPlaceholder
             imageView.layoutIfNeeded()
