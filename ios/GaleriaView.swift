@@ -117,6 +117,7 @@ class GaleriaView: ExpoView {
   }
 
   private func buildImageItems(urls: [String]) -> [ImageItem] {
+    NSLog("[Galeria] buildImageItems urls=\(urls.count) mediaTypes=\(mediaTypes ?? []) posters=\(posters?.map { $0.isEmpty ? "<empty>" : String($0.prefix(48)) } ?? []) mutedFlags=\(mutedFlags ?? [])")
     return urls.enumerated().map { index, urlString in
       let url = makeURL(from: urlString)
       let isVideo = (mediaTypes?.indices.contains(index) == true) && mediaTypes?[index] == "video"
@@ -129,10 +130,13 @@ class GaleriaView: ExpoView {
         } else {
           posterItem = nil
         }
+        NSLog("[Galeria] item \(index) -> video uri=\(url.absoluteString)")
         return ImageItem.video(url, poster: posterItem, muted: muted)
       } else if let url = url {
+        NSLog("[Galeria] item \(index) -> image uri=\(url.absoluteString)")
         return ImageItem.url(url, placeholder: nil)
       } else {
+        NSLog("[Galeria] item \(index) -> placeholder (nil url)")
         return ImageItem.image(nil)
       }
     }

@@ -93,14 +93,23 @@ class VideoViewerController: UIViewController {
         leading.isActive = true
         trailing.isActive = true
         bottom.isActive = true
+    }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        NSLog("[Galeria] VideoViewerController viewDidLoad index=\(index)")
+
+        // Child view-controller containment is set up here rather than in
+        // loadView so the parent's view hierarchy is fully realised first.
         addChild(playerViewController)
+        playerViewController.view.translatesAutoresizingMaskIntoConstraints = true
         playerViewController.view.frame = containerView.bounds
         playerViewController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         playerViewController.videoGravity = .resizeAspect
         playerViewController.showsPlaybackControls = true
         playerViewController.allowsPictureInPicturePlayback = false
-        playerViewController.view.backgroundColor = .clear
+        playerViewController.view.backgroundColor = .black
         containerView.addSubview(playerViewController.view)
         playerViewController.didMove(toParent: self)
 
@@ -109,10 +118,6 @@ class VideoViewerController: UIViewController {
         posterImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         posterImageView.isUserInteractionEnabled = false
         containerView.addSubview(posterImageView)
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
 
         loadPoster()
         preparePlayer()
@@ -184,6 +189,7 @@ class VideoViewerController: UIViewController {
     }
 
     private func preparePlayer() {
+        NSLog("[Galeria] VideoViewerController.preparePlayer url=\(url.absoluteString) muted=\(muted)")
         let item = AVPlayerItem(url: url)
         let p = AVPlayer(playerItem: item)
         p.isMuted = muted
@@ -196,9 +202,11 @@ class VideoViewerController: UIViewController {
             DispatchQueue.main.async {
                 switch item.status {
                 case .readyToPlay:
+                    NSLog("[Galeria] VideoViewerController player ready (index=\(self.index))")
                     self.handleReadyToPlay()
                 case .failed:
                     let message = item.error?.localizedDescription ?? "Unknown playback error"
+                    NSLog("[Galeria] VideoViewerController player failed (index=\(self.index)): \(message)")
                     self.onVideoError?(self.index, message)
                 default:
                     break

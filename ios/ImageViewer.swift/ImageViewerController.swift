@@ -79,8 +79,26 @@ class ImageViewerController: UIViewController {
                     self?.layout()
                 }
             }
-        default:
-            break
+        case .video(_, let posterItem, _):
+            // Fallback: a `.video` item should be handled by `VideoViewerController`,
+            // but if dispatch ever misses we at least show the poster so the page
+            // is not blank.
+            NSLog("[Galeria] WARNING: .video item reached ImageViewerController; showing poster only")
+            switch posterItem {
+            case .image(let img):
+                imageView.image = img ?? initialPlaceholder
+            case .url(let url, let placeholder):
+                let effectivePlaceholder = placeholder ?? initialPlaceholder
+                if let effectivePlaceholder {
+                    imageView.image = effectivePlaceholder
+                    imageView.contentMode = .scaleAspectFit
+                }
+                imageLoader.loadImage(url, placeholder: effectivePlaceholder, imageView: imageView) { [weak self] _ in
+                    DispatchQueue.main.async { self?.layout() }
+                }
+            default:
+                imageView.image = initialPlaceholder
+            }
         }
 
         addGestureRecognizers()

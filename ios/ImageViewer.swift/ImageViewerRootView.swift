@@ -220,6 +220,7 @@ class ImageViewerRootView: UIView, RootViewType {
     private func makeViewerController(index: Int, item: ImageItem) -> UIViewController {
         switch item {
         case .video:
+            NSLog("[Galeria] makeViewerController index=\(index) -> VideoViewerController")
             let vc = VideoViewerController(
                 index: index,
                 imageItem: item,
@@ -233,6 +234,7 @@ class ImageViewerRootView: UIView, RootViewType {
             }
             return vc
         default:
+            NSLog("[Galeria] makeViewerController index=\(index) -> ImageViewerController")
             let vc = ImageViewerController(
                 index: index,
                 imageItem: item,
