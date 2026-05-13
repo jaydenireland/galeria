@@ -1,6 +1,6 @@
 import { Image } from 'expo-image'
 import { Galeria, GaleriaSource, isGaleriaVideoSource } from 'galeria'
-import { Dimensions, StyleSheet, View } from 'react-native'
+import { Dimensions, StyleSheet, Text, View } from 'react-native'
 
 const itemWidth = Dimensions.get('window').width / 3
 
@@ -42,20 +42,22 @@ export default function VideoScreen() {
       <Galeria urls={items}>
         <View style={styles.grid}>
           {items.map((item, index) => {
-            const TriggerComponent = isGaleriaVideoSource(item)
-              ? Galeria.Video
-              : Galeria.Image
+            const isVideo = isGaleriaVideoSource(item)
+            const TriggerComponent = isVideo ? Galeria.Video : Galeria.Image
             return (
-              <TriggerComponent
-                index={index}
-                key={index}
-                style={{ backgroundColor: 'black' }}
-              >
-                <Image
-                  source={{ uri: sourceUri(item) }}
-                  style={{ width: itemWidth, height: itemWidth }}
-                />
-              </TriggerComponent>
+              <View key={index} style={styles.tileWrapper}>
+                <TriggerComponent index={index} style={styles.tile}>
+                  <Image
+                    source={{ uri: sourceUri(item) }}
+                    style={{ width: itemWidth, height: itemWidth }}
+                  />
+                </TriggerComponent>
+                {isVideo && (
+                  <View style={styles.playBadge} pointerEvents="none">
+                    <Text style={styles.playGlyph}>▶</Text>
+                  </View>
+                )}
+              </View>
             )
           })}
         </View>
@@ -73,4 +75,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
+  tileWrapper: {
+    position: 'relative',
+  },
+  tile: {
+    backgroundColor: 'black',
+  },
+  playBadge: {
+    position: 'absolute',
+    inset: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  playGlyph: {
+    color: 'white',
+    fontSize: 36,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+    marginLeft: 4,
+  },
 })
+
