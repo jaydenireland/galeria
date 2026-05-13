@@ -10,4 +10,5 @@ public enum ImageViewerOption {
     case onDismiss(() -> Void)
     case hideBlurOverlay(Bool)
     case hidePageIndicators(Bool)
+    case onVideoError((_ index: Int, _ message: String) -> Void)
 }

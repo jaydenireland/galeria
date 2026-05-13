@@ -83,6 +83,22 @@ extension UIImageView {
     }
 
     public func setupImageViewer(
+        items:[ImageItem],
+        initialIndex:Int = 0,
+        options:[ImageViewerOption] = [],
+        from:UIViewController? = nil,
+        imageLoader:ImageLoader? = nil) {
+
+        let datasource = SimpleImageDatasource(imageItems: items)
+        setup(
+            datasource: datasource,
+            initialIndex: initialIndex,
+            options: options,
+            from: from,
+            imageLoader: imageLoader)
+    }
+
+    public func setupImageViewer(
         datasource:ImageDataSource,
         initialIndex:Int = 0,
         options:[ImageViewerOption] = [],

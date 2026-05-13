@@ -10,6 +10,7 @@ class ImageViewerRootView: UIView, RootViewType {
     var options: [ImageViewerOption] = []
     var onIndexChange: ((Int) -> Void)?
     var onDismiss: (() -> Void)?
+    var onVideoError: ((Int, String) -> Void)?
     var sourceImage: UIImage?
     var hideBlurOverlay: Bool = false
     var hidePageIndicators: Bool = false
@@ -33,23 +34,34 @@ class ImageViewerRootView: UIView, RootViewType {
     private var onRightNavBarTapped: ((Int) -> Void)?
 
     private(set) var currentIndex: Int = 0
-    private var initialViewController: ImageViewerController?
+    private var initialViewController: UIViewController?
 
-    var currentImageView: UIImageView? {
-        if let vc = pageViewController?.viewControllers?.first as? ImageViewerController {
-            return vc.imageView
+    var currentMatchedView: UIView? {
+        if let vc = pageViewController?.viewControllers?.first {
+            if let imageVC = vc as? ImageViewerController { return imageVC.imageView }
+            if let videoVC = vc as? VideoViewerController { return videoVC.posterImageView }
         }
-        if let vc = initialViewController {
-            return vc.imageView
+        if let imageVC = initialViewController as? ImageViewerController {
+            return imageVC.imageView
+        }
+        if let videoVC = initialViewController as? VideoViewerController {
+            return videoVC.posterImageView
         }
         return nil
     }
 
     var currentScrollView: UIScrollView? {
-        if let vc = pageViewController?.viewControllers?.first as? ImageViewerController {
-            return vc.scrollView
+        if let vc = pageViewController?.viewControllers?.first {
+            if let imageVC = vc as? ImageViewerController { return imageVC.scrollView }
+            if let videoVC = vc as? VideoViewerController { return videoVC.scrollView }
         }
-        return initialViewController?.scrollView
+        if let imageVC = initialViewController as? ImageViewerController {
+            return imageVC.scrollView
+        }
+        if let videoVC = initialViewController as? VideoViewerController {
+            return videoVC.scrollView
+        }
+        return nil
     }
 
     var preferredStatusBarStyle: UIStatusBarStyle {
@@ -125,17 +137,12 @@ class ImageViewerRootView: UIView, RootViewType {
         addSubview(pageViewController.view)
 
         if let datasource = imageDatasource {
-            let initialVC = ImageViewerController(
+            let initialVC = makeViewerController(
                 index: initialIndex,
-                imageItem: datasource.imageItem(at: initialIndex),
-                imageLoader: imageLoader
+                item: datasource.imageItem(at: initialIndex)
             )
             self.initialViewController = initialVC
-            
-            if let sourceImage = self.sourceImage {
-                initialVC.initialPlaceholder = sourceImage
-            }
-            
+
             initialVC.view.gestureRecognizers?.removeAll(where: { $0 is UIPanGestureRecognizer })
             pageViewController.setViewControllers([initialVC], direction: .forward, animated: false)
 
@@ -204,8 +211,46 @@ class ImageViewerRootView: UIView, RootViewType {
                 self.hideBlurOverlay = hide
             case .hidePageIndicators(let hide):
                 self.hidePageIndicators = hide
+            case .onVideoError(let callback):
+                self.onVideoError = callback
             }
         }
+    }
+
+    private func makeViewerController(index: Int, item: ImageItem) -> UIViewController {
+        switch item {
+        case .video:
+            NSLog("[Galeria] makeViewerController index=\(index) -> VideoViewerController")
+            let vc = VideoViewerController(
+                index: index,
+                imageItem: item,
+                imageLoader: imageLoader
+            )
+            if let sourceImage = self.sourceImage, index == initialIndex {
+                vc.initialPlaceholder = sourceImage
+            }
+            vc.onVideoError = { [weak self] idx, message in
+                self?.onVideoError?(idx, message)
+            }
+            return vc
+        default:
+            NSLog("[Galeria] makeViewerController index=\(index) -> ImageViewerController")
+            let vc = ImageViewerController(
+                index: index,
+                imageItem: item,
+                imageLoader: imageLoader
+            )
+            if let sourceImage = self.sourceImage, index == initialIndex {
+                vc.initialPlaceholder = sourceImage
+            }
+            return vc
+        }
+    }
+
+    private func currentIndex(of viewController: UIViewController) -> Int? {
+        if let imageVC = viewController as? ImageViewerController { return imageVC.index }
+        if let videoVC = viewController as? VideoViewerController { return videoVC.index }
+        return nil
     }
 
     private func setupGestures() {
@@ -264,8 +309,7 @@ extension ImageViewerRootView: TransitionProvider {
 
 extension ImageViewerRootView: MatchTransitionDelegate {
     func matchedViewFor(transition: MatchTransition, otherView: UIView) -> UIView? {
-        let imageView = currentImageView
-        return imageView
+        return currentMatchedView
     }
 
     func matchTransitionWillBegin(transition: MatchTransition) {
@@ -295,17 +339,16 @@ extension ImageViewerRootView: UIPageViewControllerDataSource {
         _ pageViewController: UIPageViewController,
         viewControllerBefore viewController: UIViewController
     ) -> UIViewController? {
-        guard let vc = viewController as? ImageViewerController,
-              let datasource = imageDatasource,
-              vc.index > 0 else {
+        guard let datasource = imageDatasource,
+              let index = currentIndex(of: viewController),
+              index > 0 else {
             return nil
         }
 
-        let newIndex = vc.index - 1
-        let newVC = ImageViewerController(
+        let newIndex = index - 1
+        let newVC = makeViewerController(
             index: newIndex,
-            imageItem: datasource.imageItem(at: newIndex),
-            imageLoader: imageLoader
+            item: datasource.imageItem(at: newIndex)
         )
         newVC.view.gestureRecognizers?.removeAll(where: { $0 is UIPanGestureRecognizer })
         return newVC
@@ -315,17 +358,16 @@ extension ImageViewerRootView: UIPageViewControllerDataSource {
         _ pageViewController: UIPageViewController,
         viewControllerAfter viewController: UIViewController
     ) -> UIViewController? {
-        guard let vc = viewController as? ImageViewerController,
-              let datasource = imageDatasource,
-              vc.index < datasource.numberOfImages() - 1 else {
+        guard let datasource = imageDatasource,
+              let index = currentIndex(of: viewController),
+              index < datasource.numberOfImages() - 1 else {
             return nil
         }
 
-        let newIndex = vc.index + 1
-        let newVC = ImageViewerController(
+        let newIndex = index + 1
+        let newVC = makeViewerController(
             index: newIndex,
-            imageItem: datasource.imageItem(at: newIndex),
-            imageLoader: imageLoader
+            item: datasource.imageItem(at: newIndex)
         )
         newVC.view.gestureRecognizers?.removeAll(where: { $0 is UIPanGestureRecognizer })
         return newVC
@@ -349,9 +391,21 @@ extension ImageViewerRootView: UIPageViewControllerDelegate {
         previousViewControllers: [UIViewController],
         transitionCompleted completed: Bool
     ) {
-        if completed, let currentVC = pageViewController.viewControllers?.first as? ImageViewerController {
-            currentIndex = currentVC.index
+        guard completed, let currentVC = pageViewController.viewControllers?.first else { return }
+
+        for prev in previousViewControllers {
+            if let videoVC = prev as? VideoViewerController {
+                videoVC.tearDown()
+            }
+        }
+
+        if let newIndex = currentIndex(of: currentVC) {
+            currentIndex = newIndex
             onIndexChange?(currentIndex)
+        }
+
+        if let videoVC = currentVC as? VideoViewerController {
+            videoVC.play()
         }
     }
 }

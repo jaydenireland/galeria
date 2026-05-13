@@ -1,2 +1,11 @@
 export { default as Galeria } from './GaleriaView'
-export { GaleriaViewProps } from './Galeria.types'
+export {
+  GaleriaViewProps,
+  GaleriaSource,
+  GaleriaImageSource,
+  GaleriaVideoSource,
+  GaleriaImageAssetSource,
+  GaleriaVideoErrorEvent,
+  GaleriaVideoErrorPayload,
+  isGaleriaVideoSource,
+} from './Galeria.types'

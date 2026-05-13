@@ -19,14 +19,23 @@ class GaleriaModule : Module() {
             Events(
                 "onIndexChange",
                 "onLongPress",
-                "onDismiss"
+                "onDismiss",
+                "onVideoError"
             )
-            // Defines a setter for the `name` prop.
             Prop("theme") { view: GaleriaView, theme: Theme ->
                 view.theme = theme
             }
             Prop("urls") { view: GaleriaView, urls: Array<String> ->
                 view.urls = urls
+            }
+            Prop("mediaTypes") { view: GaleriaView, mediaTypes: Array<String>? ->
+                view.mediaTypes = mediaTypes
+            }
+            Prop("posters") { view: GaleriaView, posters: Array<String>? ->
+                view.posters = posters
+            }
+            Prop("mutedFlags") { view: GaleriaView, mutedFlags: Array<Boolean>? ->
+                view.mutedFlags = mutedFlags
             }
             Prop("index") { view: GaleriaView, index: Int ->
                 view.initialIndex = index
